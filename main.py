@@ -8,7 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# 1. 로깅 설정: Railway 'View Logs'에서 실시간 확인용
+# 1. 로깅 설정: Railway 'View Logs'에서 즉시 확인 가능
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger("NousExpFarmer")
 
@@ -28,7 +28,7 @@ class NousApsSystem:
             logger.error("❌ NOUS_API_KEY가 없습니다! Variables를 확인하세요.")
             return
 
-        # KST 수면 주기 반영 (00시~08시 활동 확률 15% 미만 제한)
+        # KST 수면 주기 반영 (00시~08시 활동 억제)
         kst_hour = (datetime.utcnow().hour + 9) % 24
         if not (8 <= kst_hour <= 23) and np.random.rand() > 0.15:
             logger.info("💤 야간 수면 주기: 통계적 휴식을 취합니다.")
@@ -39,7 +39,7 @@ class NousApsSystem:
         headers = {'Authorization': f'Bearer {self.api_key}', 'Content-Type': 'application/json'}
         payload = {
             "model": "Hermes-3-Llama-3.1-405B",
-            "messages": [{"role": "user", "content": f"{topic}에 대해 2문장으로 학술적 답변을 해줘."}],
+            "messages": [{"role": "user", "content": f"{topic}에 대해 학술적으로 답해줘."}],
             "temperature": float(np.random.uniform(0.75, 0.95))
         }
 
@@ -48,7 +48,7 @@ class NousApsSystem:
             if resp.status_code == 200:
                 self.msg_count += 1
                 logger.info(f"✅ [테스트 완료/기여 {self.msg_count}회] 주제: {topic}")
-                # 다음 기여 시간을 지수 분포에 따라 무작위 설정 (평균 60초)
+                # 다음 기여 시간: 지수 분포(평균 60초)
                 next_delay = int(np.random.exponential(60) + 20)
                 self.schedule_next(next_delay)
             else:
@@ -59,7 +59,6 @@ class NousApsSystem:
             self.schedule_next(120)
 
     def schedule_next(self, delay_seconds):
-        """APScheduler를 이용한 작업 예약"""
         run_time = datetime.now() + timedelta(seconds=delay_seconds)
         self.scheduler.add_job(self.call_nous, 'date', run_date=run_time)
         logger.info(f"⏰ 다음 작업 예약: {delay_seconds}초 후 실행")
@@ -69,10 +68,8 @@ class NousApsSystem:
 
 def main():
     sys = NousApsSystem()
-    
-    # 빌드 완료 5초 후 즉시 첫 실험 가동 시작
     sys.scheduler.start()
-    sys.schedule_next(5)
+    sys.schedule_next(5) # 빌드 후 5초 뒤 즉시 실행
     
     if sys.bot_token:
         app = Application.builder().token(sys.bot_token).build()
