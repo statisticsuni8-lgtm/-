@@ -1,85 +1,159 @@
 import os
 import time
-import logging
+import random
 import requests
-import numpy as np
-from datetime import datetime, timedelta
+import threading
+from datetime import datetime, timedelta, timezone
+from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
 
-# 로깅 설정: Railway 'View Logs'에서 즉시 확인 가능
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger("NousExpFarmer")
+# ==========================================
+# [설정] 환경 변수 & 모델
+# ==========================================
+API_KEY = os.getenv("NOUS_API_KEY")
+API_URL = "https://inference-api.nousresearch.com/v1/chat/completions"
+PORT = int(os.environ.get("PORT", 8080))
 
-class NousApsSystem:
-    def __init__(self):
-        self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-        self.api_key = os.getenv('NOUS_API_KEY')
-        self.api_url = "https://inference-api.nousresearch.com/v1/chat/completions"
-        self.topics = ["통계적 유의성 검정", "베이즈 사후 확률 추론", "게임이론의 내쉬 균형", "거시경제 유동성 분석"]
-        self.msg_count = 0
-        self.scheduler = BackgroundScheduler()
+MODELS = {
+    "PRIMARY": "Hermes-3-Llama-3.1-405B", 
+    "SECONDARY": "Hermes-3-Llama-3.1-70B"
+}
 
-    def call_api(self):
-        """requests와 numpy를 활용한 즉시 가동형 API 호출"""
-        if not self.api_key:
-            logger.error("❌ NOUS_API_KEY가 없습니다! Variables를 확인하세요.")
-            return
+app = Flask(__name__)
+last_run_status = {"time": "Never", "mode": "None", "status": "Initializing"}
 
-        # KST 수면 주기 반영 (00시~08시 활동 확률 15% 미만 제한)
-        kst_hour = (datetime.utcnow().hour + 9) % 24
-        if not (8 <= kst_hour <= 23) and np.random.rand() > 0.15:
-            logger.info("💤 야간 수면 주기: 통계적으로 이번 턴은 쉽니다.")
-            self.schedule_next(np.random.randint(1800, 3600))
-            return
+# ==========================================
+# [데이터 엔진] 주제: AI 기술 및 에이전트 개발
+# ==========================================
+def gen_tech_trend_data():
+    """Mode A: 최신 AI 기술 동향 데이터"""
+    techs = ["Multi-modal RAG", "Autonomous Agents", "Small Language Models", "AI Governance"]
+    focus = random.choice(techs)
+    return f"TOPIC: {focus}\nTREND_SCORE: {random.randint(70, 100)}\nRESEARCH_LAB: {random.choice(['DeepMind','OpenAI','Meta','Anthropic'])}", "TECH_ANALYSIS"
 
-        topic = np.random.choice(self.topics)
-        headers = {'Authorization': f'Bearer {self.api_key}', 'Content-Type': 'application/json'}
-        payload = {
-            "model": "Hermes-3-Llama-3.1-405B",
-            "messages": [{"role": "user", "content": f"{topic}에 대해 학술적으로 답변해줘."}],
-            "temperature": float(np.random.uniform(0.7, 0.95))
-        }
+def gen_coding_challenge():
+    """Mode B: 에이전트 로직 구현 시나리오"""
+    tasks = ["Tool Calling Logic", "Memory Management", "Self-Reflection Loop"]
+    return f"AGENT_TASK: {random.choice(tasks)}\nLANGUAGE: Python\nERROR_LOG: Memory leak in long-term context buffer.", "AGENT_DEV"
 
-        try:
-            resp = requests.post(self.api_url, headers=headers, json=payload, timeout=40)
-            if resp.status_code == 200:
-                self.msg_count += 1
-                logger.info(f"✅ [테스트 성공/기여 {self.msg_count}회] 주제: {topic}")
-                # 다음 기여 시간: 지수 분포 적용 (평균 60초)
-                next_delay = int(np.random.exponential(60) + 20)
-                self.schedule_next(next_delay)
-            else:
-                logger.error(f"⚠️ API 에러: {resp.status_code}")
-                self.schedule_next(60)
-        except Exception as e:
-            logger.error(f"📡 연결 오류: {e}")
-            self.schedule_next(120)
+def gen_short_qa():
+    """Mode C: 짧은 기술 질문 리스트"""
+    questions = ["What is the difference between LoRA and QLoRA?", "Explain Chain-of-Thought prompting.", "Best practices for API security?"]
+    return random.choice(questions), "QUICK_QA"
 
-    def schedule_next(self, delay_seconds):
-        run_time = datetime.now() + timedelta(seconds=delay_seconds)
-        self.scheduler.add_job(self.call_api, 'date', run_date=run_time)
-        logger.info(f"⏰ 다음 기여 예약: {delay_seconds}초 후 실행")
+# ==========================================
+# [행동 패턴]
+# ==========================================
+def run_deep_analysis():
+    print(" >>> [Mode: Deep Analysis] Deep dive into AI Trends...")
+    data, theme = gen_tech_trend_data()
+    prompt = f"Data:\n{data}\n\n[TASK]: Write a professional 1000-word research summary about this trend's impact on 2026."
+    process_request(MODELS["PRIMARY"], prompt, 1200, 0.7)
+    return "Deep Analysis"
 
-    async def report(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text(f"📊 현재 {self.msg_count}회차 기여 중\n(17M 아웃풋 자산 유지됨)")
+def run_dev_sprint():
+    print(" >>> [Mode: Dev Sprint] Solving Agent logic...")
+    data, theme = gen_coding_challenge()
+    messages = [
+        {"role": "system", "content": "You are a senior AI Engineer."},
+        {"role": "user", "content": f"Fix this agent issue:\n{data}"}
+    ]
+    resp = process_request_history(MODELS["PRIMARY"], messages, 800)
+    return "Dev Sprint"
 
-def main():
-    sys = NousApsSystem()
-    sys.scheduler.start()
-    
-    # [핵심] 빌드 직후 5초 뒤 즉시 첫 실험 가동 시작
-    sys.schedule_next(5)
-    
-    if sys.bot_token:
-        app = Application.builder().token(sys.bot_token).build()
-        app.add_handler(CommandHandler("report", sys.report))
-        logger.info("🚀 봇과 스케줄러 가동 준비 완료.")
-        app.run_polling(drop_pending_updates=True)
-    else:
-        logger.info("📡 텔레그램 토큰 없음: 스텔스 모드 가동.")
-        while True: time.sleep(100)
+def run_rapid_check():
+    print(" >>> [Mode: Rapid Check] Quick tech Q&A...")
+    data, theme = gen_short_qa()
+    process_request(MODELS["SECONDARY"], data, 300, 0.5)
+    return "Rapid Check"
+
+# ==========================================
+# [요청 처리기]
+# ==========================================
+def execute_api(payload, model_name):
+    headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
+    try:
+        resp = requests.post(API_URL, headers=headers, json=payload, timeout=120)
+        if resp.status_code == 200:
+            usage = resp.json().get('usage', {})
+            print(f"      ✅ Success ({model_name}): In={usage.get('prompt_tokens')} Out={usage.get('completion_tokens')}")
+            return resp.json()['choices'][0]['message']['content']
+        else:
+            print(f"      ⚠️ Error {resp.status_code}")
+            return None
+    except Exception as e:
+        print(f"      ⚠️ Exception: {e}")
+        return None
+
+def process_request(model, prompt, max_t, temp):
+    payload = {"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": max_t, "temperature": temp}
+    return execute_api(payload, model)
+
+def process_request_history(model, messages, max_t):
+    payload = {"model": model, "messages": messages, "max_tokens": max_t, "temperature": 0.8}
+    return execute_api(payload, model)
+
+# ==========================================
+# [스케줄러 및 상태 관리]
+# ==========================================
+def get_korea_time():
+    return datetime.now(timezone.utc) + timedelta(hours=9)
+
+def job_logic():
+    global last_run_status
+    if not API_KEY: 
+        last_run_status["status"] = "Error: No API Key"
+        return
+
+    hour = get_korea_time().hour
+    current_time_str = get_korea_time().strftime('%Y-%m-%d %H:%M:%S')
+
+    # 수면 모드 (03시~08시)
+    if 3 <= hour < 8:
+        last_run_status = {"time": current_time_str, "mode": "Sleep", "status": "Zzz..."}
+        return
+
+    dice = random.random()
+    mode_name = ""
+    if dice < 0.4: mode_name = run_deep_analysis()
+    elif dice < 0.8: mode_name = run_dev_sprint()
+    else: mode_name = run_rapid_check()
+
+    last_run_status = {"time": current_time_str, "mode": mode_name, "status": "Success"}
+
+# ==========================================
+# [Railway 테스트용 엔드포인트]
+# ==========================================
+@app.route('/')
+def health_check():
+    """빌딩 완료 후 접속하여 상태를 확인하는 페이지"""
+    html = f"""
+    <html>
+        <head><title>AI Agent Status</title></head>
+        <body style="font-family: sans-serif; padding: 20px;">
+            <h1>🤖 AI Agent Human-Rhythm Bot</h1>
+            <hr>
+            <p><strong>Current Korea Time:</strong> {get_korea_time().strftime('%H:%M:%S')}</p>
+            <p><strong>Last Execution:</strong> {last_run_status['time']}</p>
+            <p><strong>Last Mode:</strong> {last_run_status['mode']}</p>
+            <p><strong>Status:</strong> {last_run_status['status']}</p>
+            <hr>
+            <p><i>Server is running and scheduling jobs every 12-25 mins.</i></p>
+        </body>
+    </html>
+    """
+    return html
 
 if __name__ == "__main__":
-    main()
+    # 1. 스케줄러 설정
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(job_logic, 'interval', minutes=random.randint(12, 25))
+    scheduler.start()
+
+    # 2. 즉시 1회 실행 (테스트용)
+    print("🚀 Initial test run starting...")
+    threading.Thread(target=job_logic).start()
+
+    # 3. Flask 서버 실행 (Railway 포트 바인딩용)
+    print(f"🌍 Health Check server started on port {PORT}")
+    app.run(host='0.0.0.0', port=PORT)
