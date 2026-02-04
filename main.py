@@ -5,48 +5,58 @@ import logging
 import random
 import time
 
-# 로깅 설정: Railway 'View Logs'에서 실시간 확인 가능
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger("NousWorker")
+# 1. 로깅 설정: Railway 'View Logs'에서 즉시 확인 가능
+logging.basicConfig(
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger("NousTestWorker")
 
-class NousFarmer:
+class NousTestFarmer:
     def __init__(self):
-        # 스크린샷에 설정하신 변수명을 정확히 읽어옵니다.
+        # Railway Variables의 NOUS_API_KEY를 읽어옵니다.
         self.api_key = os.getenv('NOUS_API_KEY')
         self.api_url = "https://inference-api.nousresearch.com/v1/chat/completions"
-        self.topics = ["Bayesian Inference", "Stochastic Processes", "Game Theory", "Macroeconomics"]
+        # 통계/경제 전공자다운 고엔트로피 주제군
+        self.topics = [
+            "중심극한정리와 표본 분포의 관계", 
+            "베이즈 정리를 이용한 시장 변동성 예측", 
+            "게임이론의 Nash 균형과 경제적 함의", 
+            "시계열 분석의 자기상관성 검정"
+        ]
 
-    async def farm(self):
-        r"""지수 분포 $X \sim \text{Exp}(\lambda)$ 기반의 포아송 프로세스 파밍"""
+    async def call_api(self, session, msg):
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        payload = {
+            "model": "Hermes-3-Llama-3.1-405B",
+            "messages": [{"role": "user", "content": msg}],
+            "temperature": 0.82
+        }
+        try:
+            async with session.post(self.api_url, json=payload, headers=headers, timeout=40) as r:
+                if r.status == 200:
+                    return True
+                logger.error(f"API 에러 발생: {r.status}")
+        except Exception as e:
+            logger.error(f"연결 오류: {e}")
+        return False
+
+    async def run_experiment(self):
+        r"""지수 분포 $X \sim \text{Exp}(\lambda)$ 기반의 무작위 지연 적용"""
         if not self.api_key:
-            logger.error("NOUS_API_KEY가 설정되지 않았습니다! Variables를 확인하세요.")
+            logger.error("❌ NOUS_API_KEY를 찾을 수 없습니다. Railway Variables를 확인하세요!")
             return
 
-        logger.info("🚀 파밍 엔진 가동 시작")
+        logger.info("🚀 실험용 엔진 가동! 첫 번째 기여를 시작합니다...")
         
         async with aiohttp.ClientSession() as session:
+            count = 0
             while True:
-                # 1. 시빌 방어용 무작위 지연 (평균 60초 대기)
-                delay = random.expovariate(1/60) + 20
-                await asyncio.sleep(delay)
-
-                # 2. 메시지 전송 및 기여 수행
-                payload = {
-                    "model": "Hermes-3-Llama-3.1-405B",
-                    "messages": [{"role": "user", "content": random.choice(self.topics)}],
-                    "temperature": 0.85
-                }
-                headers = {"Authorization": f"Bearer {self.api_key}"}
-
-                try:
-                    async with session.post(self.api_url, json=payload, headers=headers) as resp:
-                        if resp.status == 200:
-                            logger.info("📡 기여 완료 (로그 확인됨)")
-                        else:
-                            logger.error(f"API 에러: {resp.status}")
-                except Exception as e:
-                    logger.error(f"연결 오류: {e}")
-
-if __name__ == "__main__":
-    farmer = NousFarmer()
-    asyncio.run(farmer.farm())
+                topic = random.choice(self.topics)
+                success = await self.call_api(session, topic)
+                
+                if success:
+                    count += 1
+                    logger.info(f"✅ [{count}회차] 기여 완료: {topic}")
+                
+                # 2. 통계적 무작위 지연 (평균 6
