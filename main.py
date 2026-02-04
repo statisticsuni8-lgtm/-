@@ -6,7 +6,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 # 1. 로깅 설정: Railway 'View Logs'에서 실시간 확인용
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -18,7 +18,7 @@ class NousApsSystem:
         self.api_key = os.getenv('NOUS_API_KEY')
         self.api_url = "https://inference-api.nousresearch.com/v1/chat/completions"
         # 통계학 맥락의 고엔트로피 주제군
-        self.topics = ["중심극한정리의 수학적 증명", "베이즈 정리를 이용한 사후 확률 계산", "게임이론의 내쉬 균형과 경제적 평형", "시계열 데이터의 정상성 검정"]
+        self.topics = ["중심극한정리의 수학적 증명", "베이즈 정리를 이용한 사후 확률 계산", "게임이론의 내쉬 균형", "시계열 데이터의 정상성 검정"]
         self.msg_count = 0
         self.scheduler = BackgroundScheduler()
 
