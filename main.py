@@ -19,18 +19,18 @@ class NousFarmer:
     async def farm(self):
         r"""지수 분포 $X \sim \text{Exp}(\lambda)$ 기반의 포아송 프로세스 파밍"""
         if not self.api_key:
-            logger.error("NOUS_API_KEY가 설정되지 않았습니다!")
+            logger.error("NOUS_API_KEY가 설정되지 않았습니다! Variables를 확인하세요.")
             return
 
         logger.info("🚀 파밍 엔진 가동 시작")
         
         async with aiohttp.ClientSession() as session:
             while True:
-                # 1. 시빌 방어용 무작위 지연 (평균 60초)
+                # 1. 시빌 방어용 무작위 지연 (평균 60초 대기)
                 delay = random.expovariate(1/60) + 20
                 await asyncio.sleep(delay)
 
-                # 2. 메시지 전송
+                # 2. 메시지 전송 및 기여 수행
                 payload = {
                     "model": "Hermes-3-Llama-3.1-405B",
                     "messages": [{"role": "user", "content": random.choice(self.topics)}],
@@ -43,7 +43,7 @@ class NousFarmer:
                         if resp.status == 200:
                             logger.info("📡 기여 완료 (로그 확인됨)")
                         else:
-                            logger.error(f"에러 발생: {resp.status}")
+                            logger.error(f"API 에러: {resp.status}")
                 except Exception as e:
                     logger.error(f"연결 오류: {e}")
 
